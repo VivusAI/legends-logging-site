@@ -155,5 +155,6 @@ func main() {
 func envBindError(err error) {
 	if err != nil {
 		logrus.WithError(err).Error("Failed to bind environment variable")
+		os.Exit(1)
 	}
 }
