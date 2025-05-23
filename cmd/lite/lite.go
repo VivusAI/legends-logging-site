@@ -32,7 +32,14 @@ var rootCmd = &cobra.Command{
 
 		port := viper.GetInt("port")
 		driver := viper.GetString("driver")
+		if driver == "" {
+			logrus.Fatal("Database driver is required. Please set the DB_DRIVER environment variable or use the --driver flag.")
+		}
+
 		dsn := viper.GetString("dsn")
+		if dsn == "" {
+			logrus.Fatal("Database DSN is required. Please set the DSN environment variable or use the --dsn flag.")
+		}
 
 		logrus.Info("Starting Fivemanage...")
 
@@ -105,12 +112,29 @@ func init() {
 	rootCmd.Flags().Int("port", 8080, "Port to serve Fivemanage")
 	rootCmd.Flags().String("dsn", "", "Database DSN")
 
-	viper.BindPFlag("driver", rootCmd.PersistentFlags().Lookup("driver"))
-	viper.BindPFlag("port", rootCmd.Flags().Lookup("port"))
-	viper.BindPFlag("dsn", rootCmd.Flags().Lookup("dsn"))
-	viper.BindEnv("driver", "DB_DRIVER")
-	viper.BindEnv("port", "PORT")
-	viper.BindEnv("dsn", "DSN")
+	if err := viper.BindPFlag("driver", rootCmd.PersistentFlags().Lookup("driver")); err != nil {
+		envBindError(err)
+	}
+
+	if err := viper.BindPFlag("port", rootCmd.Flags().Lookup("port")); err != nil {
+		envBindError(err)
+	}
+
+	if err := viper.BindPFlag("dsn", rootCmd.Flags().Lookup("dsn")); err != nil {
+		envBindError(err)
+	}
+
+	if err := viper.BindEnv("driver", "DB_DRIVER"); err != nil {
+		envBindError(err)
+	}
+
+	if err := viper.BindEnv("port", "PORT"); err != nil {
+		envBindError(err)
+	}
+
+	if err := viper.BindEnv("dsn", "DSN"); err != nil {
+		envBindError(err)
+	}
 
 	rootCmd.AddCommand(migrate.RootCmd)
 	migrate.RootCmd.AddCommand(
@@ -125,5 +149,11 @@ func init() {
 func main() {
 	if err := rootCmd.Execute(); err != nil {
 		panic(err)
+	}
+}
+
+func envBindError(err error) {
+	if err != nil {
+		logrus.WithError(err).Error("Failed to bind environment variable")
 	}
 }
