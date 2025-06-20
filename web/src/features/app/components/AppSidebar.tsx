@@ -22,22 +22,10 @@ import { NavLink } from "react-router";
 
 const items = [
   {
-    title: "Storage",
-    url: "storage",
-    icon: Folders,
-    comingSoon: false,
-  },
-  {
     title: "Tokens",
     url: "tokens",
     icon: KeyRound,
     comingSoon: false,
-  },
-  {
-    title: "Logs",
-    url: "#",
-    icon: Layers,
-    comingSoon: true,
   },
   {
     title: "Team",

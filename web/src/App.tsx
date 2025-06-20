@@ -34,6 +34,7 @@ function App() {
                   {/* Should probably wrap a suspense around this */}
                   <Route path="tokens" element={<TokensRoute />} />
                   <Route path="storage" element={<StorageRoute />} />
+                  <Route path="logs" element={<div>Logs</div>} />
                 </Route>
               </Route>
             </Route>
