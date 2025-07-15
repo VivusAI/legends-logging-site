@@ -1,4 +1,4 @@
-import { Navigate, NavLink } from "react-router";
+import { Navigate, NavLink, useNavigate } from "react-router";
 import { useOrganizations } from "../api/useOrganizations";
 import { useSession, useLogout } from "@/features/auth/api/useSession";
 import { CirclePlus, ChevronRight, LogOut } from "lucide-react";
@@ -10,6 +10,7 @@ export function OrganizationSelectRoute() {
   const session = useSession();
   const { logout } = useLogout();
   const orgCount = data?.length || 0;
+  const navigate = useNavigate();
 
   if (!session.data && !session.isPending) {
     return <Navigate to="/auth" />;
@@ -34,7 +35,7 @@ export function OrganizationSelectRoute() {
             <Button
               variant="outline"
               className="w-full justify-start mb-2"
-              onClick={() => window.location.href = '/app/new-organization'}
+              onClick={() => navigate('/app/new-organization')}
             >
               <CirclePlus className="mr-2 h-4 w-4" />
               Create New Team
