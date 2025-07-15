@@ -19,18 +19,9 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-<<<<<<< HEAD
-import { toast } from "sonner";
-
-const registerSchema = z.object({
-  username: z.string(),
-  password: z.string(),
-});
-=======
 import { useState } from "react";
 import { useLogin } from "../api/useLogin";
 import { loginSchema, LoginSchema } from "@/typings/auth";
->>>>>>> upstream/develop
 
 export function AuthForm({
   className,
@@ -44,33 +35,10 @@ export function AuthForm({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-<<<<<<< HEAD
-  const handleRegisterSubmit = async (data: z.infer<typeof registerSchema>) => {
-    console.log({ data });
-    const res = await fetch("/api/dash/auth/login", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(data),
-    });
-
-    if (res.status === 403) {
-      const body = await res.json();
-      const message = (body.message || "Unknown error").charAt(0).toUpperCase() + (body.message || "Unknown error").slice(1);
-      toast.error(message, { position: "bottom-right" });
-      return;
-    }
-
-    if (IS_DEV && res.ok) {
-      navigate("/app");
-    }
-=======
   const handleLoginSubmit = async (data: z.infer<typeof loginSchema>) => {
     setIsLoading(true);
     setError(null);
     mutateAsync(data);
->>>>>>> upstream/develop
   };
 
   return (
@@ -126,13 +94,8 @@ export function AuthForm({
                     )}
                   />
                 </div>
-<<<<<<< HEAD
-                <Button type="submit" className="w-full">
-                  Login
-=======
                 <Button type="submit" className="w-full" disabled={isLoading}>
                   {isLoading ? "Logging in..." : "Login"}
->>>>>>> upstream/develop
                 </Button>
               </div>
             </form>
