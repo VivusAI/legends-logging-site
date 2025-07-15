@@ -1,18 +1,21 @@
-import { Navigate, NavLink } from "react-router";
+import { Navigate, NavLink, useNavigate } from "react-router";
 import { useOrganizations } from "../api/useOrganizations";
-import { useSession } from "@/features/auth/api/useSession";
+import { useSession, useLogout } from "@/features/auth/api/useSession";
+import { CirclePlus, ChevronRight, LogOut } from "lucide-react";
+import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 
 export function OrganizationSelectRoute() {
   const { data, isLoading } = useOrganizations();
-
-  // todo: move this to a layout route
   const session = useSession();
+  const { logout } = useLogout();
+  const orgCount = data?.length || 0;
+  const navigate = useNavigate();
 
   if (!session.data && !session.isPending) {
     return <Navigate to="/auth" />;
   }
 
-  // switch out to use suspense
   if (isLoading) {
     return <div>Loading...</div>;
   }
@@ -22,24 +25,50 @@ export function OrganizationSelectRoute() {
   }
 
   return (
-    <div className="h-screen flex flex-col items-center justify-center">
-      <div className="border max-w-2xl w-full p-2 rounded-md">
-        {data &&
-          data.map((org) => (
-            <NavLink
-              to={`/app/${org.id}`}
-              state={{ organization: org }}
-              key={org.id}
+    <div className="min-h-screen flex items-center justify-center bg-[#09090b]">
+      <Card className="w-full max-w-md flex flex-col bg-[#18181a]">
+        <CardHeader className="border-b">
+          <CardTitle className="text-center text-2xl">Select Workspace</CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="h-72 px-4 py-4 overflow-y-auto">
+            <Button
+              variant="outline"
+              className="w-full justify-start mb-2"
+              onClick={() => navigate('/app/new-organization')}
             >
-              <div
-                key={org.id}
-                className="p-4 hover:bg-accent bg-accent/10 rounded-md"
-              >
-                <h2 className="text-lg font-medium">{org.name}</h2>
-              </div>
-            </NavLink>
-          ))}
-      </div>
+              <CirclePlus className="mr-2 h-4 w-4" />
+              Create New Team
+            </Button>
+            <ul className="flex flex-col gap-2">
+              {data.map((org) => (
+                <li key={org.id} className="w-full">
+                  <NavLink
+                    to={`/app/${org.id}`}
+                    state={{ organization: org }}
+                    className="flex items-center gap-4 rounded-lg py-2 px-4 hover:bg-accent transition-colors"
+                  >
+                    <span className="flex items-center justify-center rounded-full bg-primary text-primary-foreground font-semibold h-10 w-10">
+                      {org.name.charAt(0)}
+                    </span>
+                    <div className="grow">
+                      <p className="text-sm font-medium">{org.name}</p>
+                      <p className="text-xs text-muted-foreground">ID: {org.id}</p>
+                    </div>
+                    <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                  </NavLink>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </CardContent>
+        <CardFooter className="flex justify-between items-center border-t px-4 py-3">
+          <span className="text-sm text-muted-foreground">{orgCount} workspace{orgCount === 1 ? '' : 's'}</span>
+          <Button variant="outline" size="sm" onClick={logout} className="gap-1.5">
+            <LogOut className="h-4 w-4 mr-2" />Sign Out
+          </Button>
+        </CardFooter>
+      </Card>
     </div>
   );
 }
