@@ -3,9 +3,9 @@ import { useTheme } from "@/components/theme/useTheme";
 
 export const AuthRoute: React.FC = () => {
   const { theme } = useTheme();
-  let logoSrc = "/Main Files/Logo/White/Fivemanage-(PNG).png";
+  let logoSrc = "/logos/logo-white.png";
   if (theme === "dark") {
-    logoSrc = "/Main Files/Logo/Black/Fivemanage-(PNG).png";
+    logoSrc = "/logos/logo-black.png";
   }
   return (
     <main className="min-h-screen bg-gradient-to-br from-background via-gray-100 to-gray-200 dark:from-background dark:via-gray-900 dark:to-gray-950 flex items-center justify-center">
