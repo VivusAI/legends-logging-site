@@ -45,11 +45,12 @@ func NewServer(
 	app.Debug = true
 
 	app.Use(otelecho.Middleware("lite-api"))
+	app.Use(middleware.Recover())
+	app.Use(middleware.Logger())
+	app.Use(middleware.CORS())
+	app.Use(middleware.RateLimiter(middleware.NewRateLimiterMemoryStore(20)))
 
-	// not good, not bad
 	app.Validator = &_validator.CustomValidator{Validator: validator.New()}
-	//	app.Use(middleware.Recover())
-	// app.Use(middleware.Logger())
 
 	app.Use(middleware.StaticWithConfig(middleware.StaticConfig{
 		Filesystem: getFileSystem("dist"),

@@ -27,29 +27,34 @@ func TokenAuth(tokenService *token.Service, memcache *cache.Cache) echo.Middlewa
 
 			var tokenData *database.Token
 
-			// this all feels kinda weird to me
 			key := fmt.Sprintf(cache.TokenCacheKey, token)
 			tokenCacheData, found := memcache.Get(key)
 			if !found {
 				tokenData, err = tokenService.GetToken(ctx, token)
 				if err != nil {
-					otelzap.L().Error("failed to ge token from service", zap.Error(err))
-					return nil
+					otelzap.L().Error("failed to get token from service", zap.Error(err))
+					return c.JSON(401, echo.Map{
+						"error": "Unauthorized: Invalid token",
+					})
 				}
 
 				memcache.Set(key, tokenData, 5*time.Minute)
 
 				c.Set("org_id", tokenData.OrganizationID)
+				c.Set("token_data", tokenData)
 				return next(c)
 			}
 
 			tokenData, ok := tokenCacheData.(*database.Token)
 			if !ok {
-				fmt.Println("failed to assert token data")
-				return nil
+				otelzap.L().Error("failed to assert token data from cache")
+				return c.JSON(500, echo.Map{
+					"error": "Internal server error",
+				})
 			}
 
 			c.Set("org_id", tokenData.OrganizationID)
+			c.Set("token_data", tokenData)
 			return next(c)
 		}
 	}

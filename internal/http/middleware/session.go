@@ -21,20 +21,30 @@ func Session(authService *auth.Auth) echo.MiddlewareFunc {
 
 			sessionCookie, err := c.Cookie("fmlite_session")
 			if err != nil {
-				return c.JSON(http.StatusUnauthorized, "failed to find session cookie")
+				return c.JSON(http.StatusUnauthorized, map[string]string{"error": "session required"})
 			}
 
-			session, err := authService.UserBySession(ctx, sessionCookie.Value)
+			user, err := authService.UserBySession(ctx, sessionCookie.Value)
 			if err != nil {
-				return err
+				return c.JSON(http.StatusUnauthorized, map[string]string{"error": "invalid session"})
 			}
 
-			if len(orgID) == 0 {
-				slog.Info("no orgID")
-				// authService.IsOrgMember(ctx, session.ID, orgID)
+			if len(orgID) > 0 {
+				isMember, err := authService.IsOrganizationMember(ctx, int64(user.ID), orgID)
+				if err != nil {
+					slog.Error("failed to check organization membership", "error", err, "userID", user.ID, "orgID", orgID)
+					// we need a better error here
+					return c.JSON(http.StatusInternalServerError, map[string]string{"error": "authorization check failed"})
+				}
+
+				if !isMember {
+					// and here
+					return c.JSON(http.StatusForbidden, map[string]string{"error": "access denied to organization"})
+				}
 			}
 
-			c.Set("user", session)
+			c.Set("user", user)
+			c.Set("org_id", orgID)
 			return next(c)
 		}
 	}

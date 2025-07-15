@@ -28,11 +28,11 @@ function App() {
             <Route path="/auth" element={<AuthRoute />} />
             <Route path="/app">
               <Route index element={<OrganizationSelectRoute />} />
-              <Route
-                path="new-organization"
-                element={<NewOrganizationRoute />}
-              />
               <Route element={<ProtectedRoute />}>
+                <Route
+                  path="new-organization"
+                  element={<NewOrganizationRoute />}
+                />
                 <Route path=":organizationId" element={<AppLayout />}>
                   <Route index element={<AppDashboard />} />
                   <Route path="tokens" element={<TokensRoute />} />

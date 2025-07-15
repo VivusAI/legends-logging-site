@@ -69,4 +69,29 @@ func registerAuthApi(group *echo.Group, authservice *auth.Auth) {
 		c.SetCookie(sessionCookie)
 		return c.Redirect(http.StatusSeeOther, "/app")
 	})
+
+	group.POST("/auth/logout", func(c echo.Context) error {
+		ctx := context.Background()
+
+		sessionCookie, err := c.Cookie("fmlite_session")
+		if err != nil {
+			return c.JSON(http.StatusOK, echo.Map{
+				"message": "Already logged out",
+			})
+		}
+
+		err = authservice.LogoutUser(ctx, sessionCookie.Value)
+		if err != nil {
+			return c.JSON(http.StatusInternalServerError, echo.Map{
+				"error": "Failed to logout",
+			})
+		}
+
+		logoutCookie := authservice.CreateLogoutCookie()
+		c.SetCookie(logoutCookie)
+
+		return c.JSON(http.StatusOK, echo.Map{
+			"message": "Logout successful",
+		})
+	})
 }

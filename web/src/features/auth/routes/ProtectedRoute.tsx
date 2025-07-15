@@ -9,19 +9,34 @@ type AppParams = {
 export const ProtectedRoute: React.FC = () => {
   const params = useParams<AppParams>();
 
-  const session = useSession();
-  const { data: organizations } = useOrganizations();
+  const { data: session, isPending: sessionPending, error: sessionError } = useSession();
+  const { data: organizations, isPending: orgsPending } = useOrganizations();
 
-  if (!session.data && !session.isPending) {
-    return <Navigate to="/auth" />;
+  if (sessionPending) {
+    return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
+  }
+
+  if (sessionError || !session) {
+    return <Navigate to="/auth" replace />;
+  }
+
+  if (orgsPending) {
+    return <div className="flex items-center justify-center min-h-screen">Loading organizations...</div>;
   }
 
   if (organizations && organizations.length === 0) {
-    return <Navigate to="/app/new-organization" />;
+    return <Navigate to="/app/new-organization" replace />;
   }
 
-  if (!params.organizationId) {
-    return <Navigate to="/app" />;
+  if (params.organizationId && organizations) {
+    const hasAccess = session.isAdmin || organizations.some(org => org.id === params.organizationId);
+    if (!hasAccess) {
+      return <Navigate to="/app" replace />;
+    }
+  }
+
+  if (!params.organizationId && organizations && organizations.length > 0) {
+    return <Navigate to={`/app/${organizations[0].id}`} replace />;
   }
 
   return <Outlet />;
