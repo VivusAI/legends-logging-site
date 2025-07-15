@@ -21,6 +21,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import { toast } from "sonner";
 
 const registerSchema = z.object({
   username: z.string(),
@@ -46,6 +47,13 @@ export function AuthForm({
       },
       body: JSON.stringify(data),
     });
+
+    if (res.status === 403) {
+      const body = await res.json();
+      const message = (body.message || "Unknown error").charAt(0).toUpperCase() + (body.message || "Unknown error").slice(1);
+      toast.error(message, { position: "bottom-right" });
+      return;
+    }
 
     if (IS_DEV && res.ok) {
       navigate("/app");
@@ -100,7 +108,7 @@ export function AuthForm({
                   />
                 </div>
                 <Button type="submit" className="w-full">
-                  Register
+                  Login
                 </Button>
               </div>
             </form>

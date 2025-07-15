@@ -8,6 +8,7 @@ import { ThemeProvider } from "./components/theme/ThemeProvider";
 import { ProtectedRoute } from "./features/auth/routes/ProtectedRoute";
 import { NewOrganizationRoute } from "./features/organizations/routes/NewOrganizationRoute";
 import { OrganizationSelectRoute } from "./features/organizations/routes/OrganizationSelectRoute";
+import { Toaster } from "sonner";
 const StorageRoute = lazy(() => import("./features/files/StorageRoute"));
 const TokensRoute = lazy(() => import("./features/tokens/routes/TokensRoute"));
 const DatasetRoute = lazy(() => import("./features/logs/routes/dataset-route"));
@@ -20,6 +21,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <BrowserRouter>
+          <Toaster richColors position="bottom-right" />
           <Routes>
             <Route path="*" element={<div>404</div>} />
             <Route path="/" element={<Navigate to="/app" />} />

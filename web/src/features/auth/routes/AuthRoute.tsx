@@ -1,15 +1,21 @@
 import { AuthForm } from "../components/AuthForm";
+import { useTheme } from "@/components/theme/useTheme";
 
 export const AuthRoute: React.FC = () => {
+  const { theme } = useTheme();
+  let logoSrc = "/Main Files/Logo/White/Fivemanage-(PNG).png";
+  if (theme === "dark") {
+    logoSrc = "/Main Files/Logo/Black/Fivemanage-(PNG).png";
+  }
   return (
     <main className="min-h-screen bg-gradient-to-br from-background via-gray-100 to-gray-200 dark:from-background dark:via-gray-900 dark:to-gray-950 flex items-center justify-center">
       <div className="flex w-full items-center justify-center p-6 md:p-10">
         <div className="w-full max-w-sm">
           <div className="flex flex-col items-center mb-8">
             <img
-              src="https://app.fivemanage.com/_next/static/media/fivemanage.fbd9fe39.svg"
+              src={logoSrc}
               alt="Fivemanage Logo"
-              className="w-50 h-20 mb-4 drop-shadow-lg"
+              className="w-55 h-10 mb-4 drop-shadow-lg"
             />
             <h1 className="text-3xl font-bold mb-1 text-center">Sign in to Fivemanage Lite</h1>
           </div>
