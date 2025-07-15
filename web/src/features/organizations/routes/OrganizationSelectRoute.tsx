@@ -5,6 +5,7 @@ import { CirclePlus, ChevronRight, LogOut } from "lucide-react";
 
 export function OrganizationSelectRoute() {
   const { data, isLoading } = useOrganizations();
+  // todo: move this to a layout route
   const session = useSession();
   const { logout } = useLogout();
   const orgCount = data?.length || 0;
@@ -13,6 +14,7 @@ export function OrganizationSelectRoute() {
     return <Navigate to="/auth" />;
   }
 
+  // switch out to use suspense
   if (isLoading) {
     return <div>Loading...</div>;
   }
