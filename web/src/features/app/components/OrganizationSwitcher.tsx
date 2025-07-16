@@ -22,14 +22,14 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 export function OrganizationSwitcher() {
   const { isMobile } = useSidebar();
-  const { data: organisaties, isLoading } = useOrganizations();
+  const { data: organizations, isLoading } = useOrganizations();
   const params = useParams();
   const navigate = useNavigate();
 
   if (isLoading) return null;
-  if (!organisaties || organisaties.length === 0) return null;
+  if (!organizations || organizations.length === 0) return null;
 
-  const actieveOrganisatie = organisaties.find((org) => org.id === params.organizationId) || organisaties[0];
+  const activeOrganization = organizations.find((org) => org.id === params.organizationId) || organizations[0];
 
   return (
     <SidebarMenu>
@@ -42,12 +42,12 @@ export function OrganizationSwitcher() {
             >
               <Avatar className="size-8 rounded-lg bg-sidebar-primary text-sidebar-primary-foreground font-bold text-base uppercase">
                 <AvatarFallback className="rounded-lg">
-                  {actieveOrganisatie.name.slice(0, 2)}
+                  {activeOrganization.name.slice(0, 2)}
                 </AvatarFallback>
               </Avatar>
               <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-medium">{actieveOrganisatie.name}</span>
-                <span className="truncate text-xs">ID: {actieveOrganisatie.id}</span>
+                <span className="truncate font-medium">{activeOrganization.name}</span>
+                <span className="truncate text-xs">ID: {activeOrganization.id}</span>
               </div>
               <ChevronsUpDown className="ml-auto" />
             </SidebarMenuButton>
@@ -61,7 +61,7 @@ export function OrganizationSwitcher() {
             <DropdownMenuLabel className="text-muted-foreground text-xs">
               Organizations
             </DropdownMenuLabel>
-            {organisaties.filter(org => org.id !== actieveOrganisatie.id).map((org) => (
+            {organizations.filter(org => org.id !== activeOrganization.id).map((org) => (
               <DropdownMenuItem
                 key={org.id}
                 onClick={() => navigate(`/app/${org.id}`)}
