@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const createOrganizationSchema = z.object({
-  name: z.string(),
+  name: z.string().min(1, "Organization name is required"),
 });
 
 export type CreateOrganizationSchema = z.infer<typeof createOrganizationSchema>;
