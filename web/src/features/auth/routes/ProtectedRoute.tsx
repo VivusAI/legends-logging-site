@@ -1,5 +1,5 @@
 import { useOrganizations } from "@/features/organizations/api/useOrganizations";
-import { Outlet, Navigate, useParams } from "react-router";
+import { Outlet, Navigate, useParams, useLocation } from "react-router";
 import { useSession } from "../api/useSession";
 
 type AppParams = {
@@ -8,6 +8,7 @@ type AppParams = {
 
 export const ProtectedRoute: React.FC = () => {
   const params = useParams<AppParams>();
+  const location = useLocation();
 
   const { data: session, isPending: sessionPending, error: sessionError } = useSession();
   const { data: organizations, isLoading: orgsPending } = useOrganizations();
@@ -31,7 +32,9 @@ export const ProtectedRoute: React.FC = () => {
     }
   }
 
-  if (!params.organizationId && organizations && organizations.length > 0) {
+  const isNewOrganizationRoute = location.pathname === "/app/new-organization";
+
+  if (!params.organizationId && organizations && organizations.length > 0 && !isNewOrganizationRoute) {
     return <Navigate to={`/app/${organizations[0].id}`} replace />;
   }
 
