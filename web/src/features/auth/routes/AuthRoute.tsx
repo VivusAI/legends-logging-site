@@ -3,8 +3,12 @@ import { useTheme } from "@/components/theme/useTheme";
 
 export const AuthRoute: React.FC = () => {
   const { theme } = useTheme();
+  let systemTheme = undefined;
+  if (theme === "system" && typeof window !== "undefined") {
+    systemTheme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  }
   let logoSrc = "/logos/logo-white.png";
-  if (theme === "dark") {
+  if (theme === "dark" || (theme === "system" && systemTheme === "dark")) {
     logoSrc = "/logos/logo-black.png";
   }
   return (
