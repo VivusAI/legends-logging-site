@@ -5,6 +5,7 @@ import (
 	"io"
 
 	"github.com/fivemanage/lite/pkg/storage/s3"
+	"github.com/spf13/viper"
 )
 
 type StorageLayer interface {
@@ -16,7 +17,8 @@ type StorageLayer interface {
 func New(provider string) StorageLayer {
 	switch provider {
 	case "s3":
-		return s3.New()
+		s3Provider := viper.GetString("s3-provider")
+		return s3.New(s3Provider)
 	}
 
 	return nil

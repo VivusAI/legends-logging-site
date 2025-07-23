@@ -202,6 +202,9 @@ func init() {
 	if err := viper.BindEnv("clickhouse-database", "CLICKHOUSE_DATABASE"); err != nil {
 		bindError(err)
 	}
+	if err := viper.BindEnv("s3-provider", "S3_PROVIDER"); err != nil {
+		bindError(err)
+	}
 
 	rootCmd.AddCommand(migrate.RootCmd)
 	migrate.RootCmd.AddCommand(
