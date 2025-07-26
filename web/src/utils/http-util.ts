@@ -38,8 +38,8 @@ export async function fetchApi<T = unknown>(
       throw new ApiError(errorResponse.error, errorResponse.message);
     }
 
-    const response = (await res.json()) as ApiResponse<T>;
-    return response.data;
+    const response = await res.json();
+    return response.data ?? response;
   } catch (err) {
     if (err instanceof Error) {
       throw new Error(err.message);
