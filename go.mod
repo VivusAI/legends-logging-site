@@ -1,6 +1,6 @@
 module github.com/fivemanage/lite
 
-go 1.24
+go 1.24.0
 
 require (
 	github.com/ClickHouse/clickhouse-go/v2 v2.36.0
@@ -29,7 +29,7 @@ require (
 	go.opentelemetry.io/otel/sdk v1.36.0
 	go.uber.org/zap v1.27.0
 	golang.org/x/crypto v0.38.0
-	golang.org/x/oauth2 v0.28.0
+	golang.org/x/oauth2 v0.31.0
 )
 
 require (
