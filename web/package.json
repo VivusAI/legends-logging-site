@@ -37,7 +37,7 @@
     "dayjs": "^1.11.13",
     "jotai": "^2.12.5",
     "lodash": "^4.17.21",
-    "lucide-react": "^0.428.0",
+    "lucide-react": "^0.544.0",
     "react": "^19.0.0",
     "react-autosuggest": "10.1.0",
     "react-day-picker": "^9.8.0",
