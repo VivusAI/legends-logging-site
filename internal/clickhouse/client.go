@@ -31,6 +31,12 @@ type Log struct {
 	RetentionDays int
 }
 
+type Trace struct {
+	DatasetID string
+	TeamID    string
+	TraceID   string
+}
+
 type LogField struct {
 	Field string
 	Type  string

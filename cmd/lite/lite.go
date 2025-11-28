@@ -19,6 +19,7 @@ import (
 	"github.com/fivemanage/lite/internal/service/log"
 	"github.com/fivemanage/lite/internal/service/organization"
 	"github.com/fivemanage/lite/internal/service/token"
+	"github.com/fivemanage/lite/internal/service/trace"
 	"github.com/fivemanage/lite/migrate"
 	"github.com/fivemanage/lite/pkg/cache"
 	"github.com/fivemanage/lite/pkg/kafkaqueue"
@@ -100,6 +101,7 @@ var rootCmd = &cobra.Command{
 		organizationService := organization.NewService(store)
 		datsetService := dataset.NewService(store, clickhouseClient)
 		logService := log.NewService(store, kafkaP, clickhouseClient, datsetService)
+		traceService := trace.NewService(clickhouseClient, datsetService)
 
 		worker := kafkaqueue.NewBatchWorker(clickhouseClient, kafkaC)
 
@@ -116,6 +118,7 @@ var rootCmd = &cobra.Command{
 			organizationService,
 			logService,
 			datsetService,
+			traceService,
 			memcache,
 		)
 
