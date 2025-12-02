@@ -18,6 +18,6 @@ func (ErrUserCredentials) Error() string {
 }
 
 func (ErrUserCredentials) Is(target error) bool {
-	_, ok := target.(ErrSessionExpired)
+	_, ok := target.(ErrUserCredentials)
 	return ok
 }

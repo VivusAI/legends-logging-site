@@ -1,7 +1,6 @@
 package database
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/uptrace/bun"
@@ -28,55 +27,67 @@ type Session struct {
 	User          *User     `bun:"rel:belongs-to,join:user_id=id"`
 }
 
+// nanoid to keep the ID more url friendly
+// might switch to uuid later
 type Organization struct {
 	bun.BaseModel `bun:"table:organization"`
-	ID            int64  `bun:"id,pk,autoincrement"`
-	OwnerID       string `bun:"owner_Id"`
+	ID            string `bun:"id,pk"`
 	Name          string `bun:"name"`
-	User          *User  `bun:"rel:belongs-to,join:owner_id=id"`
 }
 
 type OrganizationMember struct {
 	bun.BaseModel  `bun:"table:organization_member"`
 	ID             int64         `bun:"id,pk,autoincrement"`
-	UserID         int           `bun:"user_id"`
-	OrganizationID int           `bun:"organization_id"`
+	Role           string        `bun:"role"`
+	UserID         int64         `bun:"user_id"`
+	OrganizationID string        `bun:"organization_id"`
 	User           *User         `bun:"rel:belongs-to,join:user_id=id"`
 	Organization   *Organization `bun:"rel:belongs-to,join:organization_id=id"`
 }
 
 type Token struct {
-	bun.BaseModel `bun:"table:token"`
-	ID            int64  `bun:"id,pk,autoincrement"`
-	TokenHash     string `bun:"token_hash"`
-	Identifier    string `bun:"identifier"`
-	UserID        int    `bun:"user_id"`
-	User          *User  `bun:"rel:belongs-to,join:user_id=id"`
+	bun.BaseModel  `bun:"table:token"`
+	ID             int64         `bun:"id,pk,autoincrement"`
+	TokenHash      string        `bun:"token_hash"`
+	Identifier     string        `bun:"identifier"`
+	UserID         int           `bun:"user_id"`
+	User           *User         `bun:"rel:belongs-to,join:user_id=id"`
+	OrganizationID string        `bun:"organization_id"`
+	Organization   *Organization `bun:"rel:belongs-to,join:organization_id=id"`
+	CreatedAt      time.Time     `bun:"created_at,nullzero,notnull,default:current_timestamp"`
 }
 
-type File struct {
-	bun.BaseModel  `bun:"table:file"`
+// nanoid to keep the ID more url friendly
+// might switch to uuid later
+type Asset struct {
+	bun.BaseModel  `bun:"table:asset"`
+	ID             string        `bun:"id,pk"`
 	Key            string        `bun:"key"`
 	Size           int64         `bun:"size"`
 	Type           string        `bun:"type"`
-	OrganizationID int64         `bun:"organization_id"`
+	CreatedAt      time.Time     `bun:"created_at,nullzero,notnull,default:current_timestamp"`
+	UpdatedAt      time.Time     `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
+	OrganizationID string        `bun:"organization_id"`
+	Organization   *Organization `bun:"rel:belongs-to,join:organization_id=id"`
+}
+
+type Dataset struct {
+	bun.BaseModel  `bun:"table:dataset"`
+	ID             string        `bun:"id,pk"`
+	Name           string        `bun:"name"`
+	Description    string        `bun:"description"`
+	RetentionDays  int           `bun:"retention_days"`
+	CreatedAt      time.Time     `bun:"created_at,nullzero,notnull,default:current_timestamp"`
+	UpdatedAt      time.Time     `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
+	OrganizationID string        `bun:"organization_id"`
 	Organization   *Organization `bun:"rel:belongs-to,join:organization_id=id"`
 }
 
 type Store interface {
-	Connect() *bun.DB
+	Connect(dsn string) *bun.DB
 }
 
 // TODO: Return error if driver is not supported
-func New(driver string, dsn string) Store {
-	fmt.Println("option", driver)
-
-	switch driver {
-	case "mysql":
-		return &MySQL{}
-	case "pg", "postgresql":
-		return &PostgreSQL{}
-	default:
-		return nil
-	}
+func New(driver string) Store {
+	return &PostgreSQL{}
 }

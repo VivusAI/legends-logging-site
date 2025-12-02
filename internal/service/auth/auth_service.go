@@ -28,7 +28,7 @@ type Auth struct {
 	db     *bun.DB
 }
 
-func New(db *bun.DB) *Auth {
+func NewService(db *bun.DB) *Auth {
 	githubConfig := auth.NewGithubConfig()
 
 	return &Auth{
@@ -63,7 +63,7 @@ func (a *Auth) CreateAdminUser() error {
 
 	adminPassword := os.Getenv("ADMIN_PASSWORD")
 	if adminPassword == "" {
-		return errors.New("Admin password is missing. Make sure ADMIN_PASSWORD is set.")
+		return errors.New("admin password is missing. make sure ADMIN_PASSWORD is set")
 	}
 
 	passwordHash, err := crypt.HashPassword(adminPassword)
@@ -259,14 +259,48 @@ func (a *Auth) UserBySession(ctx context.Context, sessionID string) (*api.User, 
 	}, nil
 }
 
+func (a *Auth) IsOrganizationMember(ctx context.Context, userID int64, organizationID string) (bool, error) {
+	member := new(database.OrganizationMember)
+	err := a.db.NewSelect().Model(member).
+		Where("user_id = ? AND organization_id = ?", userID, organizationID).
+		Limit(1).
+		Scan(ctx)
+
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return false, nil
+		}
+		return false, err
+	}
+
+	return true, nil
+}
+
+func (a *Auth) LogoutUser(ctx context.Context, sessionID string) error {
+	_, err := a.db.NewDelete().Model((*database.Session)(nil)).Where("id = ?", sessionID).Exec(ctx)
+	return err
+}
+
 func (a *Auth) CreateSessionCookie(sessionID string) *http.Cookie {
+	isProduction := os.Getenv("ENV") == "production"
 	return &http.Cookie{
 		Name:     "fmlite_session",
 		Value:    sessionID,
-		Secure:   false,
+		Secure:   isProduction,
 		SameSite: http.SameSiteLaxMode,
 		HttpOnly: true,
 		Path:     "/",
-		MaxAge:   3600,
+		Expires:  time.Now().Add(time.Hour * 24),
+	}
+}
+
+func (a *Auth) CreateLogoutCookie() *http.Cookie {
+	return &http.Cookie{
+		Name:     "fmlite_session",
+		Value:    "",
+		HttpOnly: true,
+		Path:     "/",
+		Expires:  time.Now().Add(-time.Hour),
+		MaxAge:   -1,
 	}
 }

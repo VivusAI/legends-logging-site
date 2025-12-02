@@ -3,67 +3,55 @@ package publicapi
 import (
 	"net/http"
 
+	"github.com/fivemanage/lite/internal/auth"
 	"github.com/fivemanage/lite/internal/http/httputil"
+	"github.com/fivemanage/lite/internal/http/middleware"
 	"github.com/fivemanage/lite/internal/service/file"
+	"github.com/fivemanage/lite/internal/service/token"
+	"github.com/fivemanage/lite/pkg/cache"
 	"github.com/labstack/echo/v4"
 )
 
 // DRY they said
-func registerMediaApi(group *echo.Group, fileService *file.Service) {
+func registerMediaApi(group *echo.Group, fileService *file.Service, tokenService *token.Service, cache *cache.Cache) {
 	group.POST("/image", func(c echo.Context) error {
-		var err error
-		ctx := c.Request().Context()
-
-		file, header, err := httputil.File(c.Request(), "image")
-		if err != nil {
-			return c.JSON(http.StatusInternalServerError, echo.Map{
-				"error": err.Error(),
-			})
-		}
-
-		err = fileService.CreateFile(ctx, "image", file, header)
-		if err != nil {
-			return echo.NewHTTPError(http.StatusInternalServerError, err)
-		}
-
-		return c.JSON(200, nil)
-	})
+		return handler(c, "image", fileService)
+	}, middleware.TokenAuth(tokenService, cache), middleware.ValidateMime("image", middleware.WhitelistedImageMIME))
 
 	group.POST("/video", func(c echo.Context) error {
-		var err error
-		ctx := c.Request().Context()
-
-		file, header, err := httputil.File(c.Request(), "image")
-		if err != nil {
-			return c.JSON(http.StatusInternalServerError, echo.Map{
-				"error": err.Error(),
-			})
-		}
-
-		err = fileService.CreateFile(ctx, "video", file, header)
-		if err != nil {
-			return echo.NewHTTPError(http.StatusInternalServerError, err)
-		}
-
-		return c.JSON(200, nil)
-	})
+		return handler(c, "video", fileService)
+	}, middleware.TokenAuth(tokenService, cache), middleware.ValidateMime("video", middleware.WhitelistedVideoMIME))
 
 	group.POST("/audio", func(c echo.Context) error {
-		var err error
-		ctx := c.Request().Context()
+		return handler(c, "audio", fileService)
+	}, middleware.TokenAuth(tokenService, cache), middleware.ValidateMime("audio", middleware.WhitelistedAudioMIME))
 
-		file, header, err := httputil.File(c.Request(), "image")
-		if err != nil {
-			return c.JSON(http.StatusInternalServerError, echo.Map{
-				"error": err.Error(),
-			})
-		}
+	group.POST("/file", func(c echo.Context) error {
+		return handler(c, "file", fileService)
+	}, middleware.TokenAuth(tokenService, cache), middleware.ValidateMime("file", nil))
+}
 
-		err = fileService.CreateFile(ctx, "audio", file, header)
-		if err != nil {
-			return echo.NewHTTPError(http.StatusInternalServerError, err)
-		}
+func handler(c echo.Context, fileType string, fileService *file.Service) error {
+	var err error
+	ctx := c.Request().Context()
 
-		return c.JSON(200, nil)
-	})
+	orgId, err := auth.CurrentOrgId(c)
+	if err != nil {
+		// we should probably have a better error here
+		return echo.NewHTTPError(http.StatusUnauthorized, "Unauthorized: "+err.Error())
+	}
+
+	file, header, err := httputil.File(c.Request(), fileType)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, echo.Map{
+			"error": err.Error(),
+		})
+	}
+
+	err = fileService.CreateFile(ctx, orgId, file, header)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err)
+	}
+
+	return c.JSON(200, nil)
 }

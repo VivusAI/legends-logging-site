@@ -1,15 +1,13 @@
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/Card";
-import { Input } from "@/components/ui/Input";
-import { useNavigate } from "react-router";
-import { IS_DEV } from "@/utils/http-util";
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { useForm } from "react-hook-form";
 import z from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -20,36 +18,27 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from "@/components/ui/Form";
-
-const registerSchema = z.object({
-  username: z.string(),
-  password: z.string(),
-});
+} from "@/components/ui/form";
+import { useState } from "react";
+import { useLogin } from "../api/useLogin";
+import { loginSchema, LoginSchema } from "@/typings/auth";
 
 export function AuthForm({
   className,
   ...props
 }: React.ComponentPropsWithoutRef<"div">) {
-  const formMethods = useForm<z.infer<typeof registerSchema>>({
-    resolver: zodResolver(registerSchema),
+  const formMethods = useForm<LoginSchema>({
+    resolver: zodResolver(loginSchema),
   });
 
-  const navigate = useNavigate();
+  const { mutateAsync } = useLogin();
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleRegisterSubmit = async (data: z.infer<typeof registerSchema>) => {
-    console.log({ data });
-    const res = await fetch("/api/auth/login", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(data),
-    });
-
-    if (IS_DEV && res.ok) {
-      navigate("/app");
-    }
+  const handleLoginSubmit = async (data: z.infer<typeof loginSchema>) => {
+    setIsLoading(true);
+    setError(null);
+    mutateAsync(data);
   };
 
   return (
@@ -58,13 +47,18 @@ export function AuthForm({
         <CardHeader>
           <CardTitle className="text-2xl">Login</CardTitle>
           <CardDescription>
-            Enter your email below to login to your account
+            Enter your username and password to login to your account
           </CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...formMethods}>
-            <form onSubmit={formMethods.handleSubmit(handleRegisterSubmit)}>
+            <form onSubmit={formMethods.handleSubmit(handleLoginSubmit)}>
               <div className="flex flex-col gap-6">
+                {error && (
+                  <div className="text-sm text-red-600 bg-red-50 p-3 rounded-md">
+                    {error}
+                  </div>
+                )}
                 <div className="grid gap-2">
                   <FormField
                     control={formMethods.control}
@@ -73,7 +67,7 @@ export function AuthForm({
                       <FormItem>
                         <FormLabel>Username</FormLabel>
                         <FormControl>
-                          <Input {...field} />
+                          <Input {...field} disabled={isLoading} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -92,6 +86,7 @@ export function AuthForm({
                             type="password"
                             placeholder="*********"
                             {...field}
+                            disabled={isLoading}
                           />
                         </FormControl>
                         <FormMessage />
@@ -99,8 +94,8 @@ export function AuthForm({
                     )}
                   />
                 </div>
-                <Button type="submit" className="w-full">
-                  Register
+                <Button type="submit" className="w-full" disabled={isLoading}>
+                  {isLoading ? "Logging in..." : "Login"}
                 </Button>
               </div>
             </form>

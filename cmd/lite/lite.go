@@ -3,115 +3,211 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	nethttp "net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
+	"github.com/fivemanage/lite/internal/clickhouse"
 	"github.com/fivemanage/lite/internal/database"
 	"github.com/fivemanage/lite/internal/http"
 	"github.com/fivemanage/lite/internal/service/auth"
+	"github.com/fivemanage/lite/internal/service/dataset"
 	"github.com/fivemanage/lite/internal/service/file"
+	"github.com/fivemanage/lite/internal/service/log"
+	"github.com/fivemanage/lite/internal/service/organization"
 	"github.com/fivemanage/lite/internal/service/token"
-	"github.com/fivemanage/lite/internal/storage"
 	"github.com/fivemanage/lite/migrate"
+	"github.com/fivemanage/lite/pkg/cache"
+	"github.com/fivemanage/lite/pkg/kafkaqueue"
+	"github.com/fivemanage/lite/pkg/logger"
+	"github.com/fivemanage/lite/pkg/otel"
+	"github.com/fivemanage/lite/pkg/storage"
 	"github.com/joho/godotenv"
-	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 )
 
-var (
-	rootCmd = &cobra.Command{
-		Use:   "fivemanage",
-		Short: "Open-source, easy-to-use gaming-community management service.",
-	}
+var rootCmd = &cobra.Command{
+	Use:   "fivemanage",
+	Short: "Open-source, easy-to-use gaming-community management service.",
+	Run: func(cmd *cobra.Command, args []string) {
+		var err error
 
-	// todo: otel & promhttp
+		port := viper.GetInt("port")
+		driver := viper.GetString("driver")
+		dsn := viper.GetString("dsn")
 
-	// this whole code can probably go into a 'run.go' file.
-	// just to not fill this file with shit
-	// its gonna be ugly anyways tho
-	runCmd = &cobra.Command{
-		Use:   "run",
-		Short: "Run fivemanage application",
-		Run: func(cmd *cobra.Command, args []string) {
-			var err error
+		logger.New()
 
-			port := viper.GetInt("port")
-			driver := viper.GetString("driver")
+		slog.Info("starting Fivemanage application")
 
-			err = godotenv.Load()
-			// TODO: Only for development
-			if err != nil {
-				log.Fatal("Error loading .env file. Probably becasue we're in production")
+		otelShutdown, err := otel.SetupTracer()
+		if err != nil {
+			slog.Error("failed to setup OpenTelemetry", slog.Any("error", err))
+		}
+
+		defer func() {
+			slog.Info("attempting to shutdown OpenTelemetry...")
+			otelCtx, otelCancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer otelCancel()
+
+			if shutdownErr := otelShutdown(otelCtx); shutdownErr != nil {
+				slog.Error("failed to shutdown OpenTelemetry", slog.Any("error", shutdownErr))
+			} else {
+				slog.Info("OpenTelemetry shutdown successfully.")
 			}
+		}()
 
-			db := database.New(driver, "")
-			store := db.Connect()
-			migrate.AutoMigrate(cmd.Context(), store)
+		// this is kinda confusion, 'db' and 'store'
+		// maybe we shold call it like...connection and instance?
+		// store makes no fucking sense atleast
+		db := database.New(driver)
+		store := db.Connect(dsn)
 
-			storageLayer := storage.New("s3")
+		// run migrations for postgres
+		// and yes, it's ok to init this here
+		migrate.InitMigration(cmd.Context(), store)
+		migrate.AutoMigrate(cmd.Context(), store)
 
-			authservice := auth.New(store)
-			tokenservice := token.NewService(store)
-			fileservice := file.NewService(store, storageLayer)
+		// setup and run migrations for clickhouse
+		chConfig := &clickhouse.Config{
+			Host:     viper.GetString("clickhouse-host"),
+			Username: viper.GetString("clickhouse-username"),
+			Password: viper.GetString("clickhouse-password"),
+			Database: viper.GetString("clickhouse-database"),
+		}
 
-			server := http.NewServer(
-				authservice,
-				tokenservice,
-				fileservice,
-			)
+		clickhouse.AutoMigrate(cmd.Context(), chConfig)
+		clickhouseClient := clickhouse.NewClient(chConfig)
 
-			// todo: check if we have an admin user
-			// if not, create an admin user with the ADMIN_PASSWORD ENV
-			err = authservice.CreateAdminUser()
-			if err != nil {
-				logrus.WithError(err).Error("Failed to create admin user")
-				return
+		kafkaC := kafkaqueue.NewConsumer(otelzap.L())
+		kafkaP := kafkaqueue.NewProducer(otelzap.L())
+
+		storageLayer := storage.New("s3")
+		// im not sure if we need to exit here.
+		// not all uers might want to use this for file uploads
+		if err := storageLayer.CreateBucket(cmd.Context()); err != nil {
+			slog.Warn("failed to create default bucket", slog.Any("error", err))
+		}
+
+		authService := auth.NewService(store)
+		tokenService := token.NewService(store)
+		fileService := file.NewService(store, storageLayer)
+		organizationService := organization.NewService(store)
+		datsetService := dataset.NewService(store, clickhouseClient)
+		logService := log.NewService(store, kafkaP, clickhouseClient, datsetService)
+
+		worker := kafkaqueue.NewBatchWorker(clickhouseClient, kafkaC)
+
+		// kinda not sure what I want to do with this
+		// at some point we might actually want to run more than one worker
+		go worker.ProcessMessages()
+
+		memcache := cache.NewMemcache(0)
+
+		server := http.NewServer(
+			authService,
+			tokenService,
+			fileService,
+			organizationService,
+			logService,
+			datsetService,
+			memcache,
+		)
+
+		// todo: check if we have an admin user
+		// if not, create an admin user with the ADMIN_PASSWORD ENV
+		err = authService.CreateAdminUser()
+		if err != nil {
+			slog.Error("failed to create admin user", slog.Any("error", err))
+			return
+		}
+
+		srv := &nethttp.Server{
+			Addr:    fmt.Sprintf(":%d", port),
+			Handler: server,
+		}
+
+		go func() {
+			otelzap.S().Infof("Fivemanage is running on port %d", port)
+			if err := srv.ListenAndServe(); err != nil && err != nethttp.ErrServerClosed {
+				slog.Error("listen", slog.Any("error", err))
+				os.Exit(1)
 			}
+		}()
 
-			srv := &nethttp.Server{
-				Addr:    fmt.Sprintf("localhost:%d", port),
-				Handler: server,
-			}
+		quit := make(chan os.Signal, 1)
+		signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+		<-quit
+		slog.Info("shutdown Server ...")
 
-			go func() {
-				fmt.Printf("Server is running on port %d...\n", port)
-				if err := srv.ListenAndServe(); err != nil && err != nethttp.ErrServerClosed {
-					log.Fatalf("listen: %s\n", err)
-				}
-			}()
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
 
-			quit := make(chan os.Signal, 1)
-			signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-			<-quit
-			log.Println("Shutdown Server ...")
+		if err := srv.Shutdown(ctx); err != nil {
+			slog.Error("server shutdown", slog.Any("error", err))
+			os.Exit(1)
+		}
 
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
-			if err := srv.Shutdown(ctx); err != nil {
-				log.Fatal("Server Shutdown:", err)
-			}
-			select {
-			case <-ctx.Done():
-				log.Println("timeout of 5 seconds.")
-			}
-			log.Println("Server exiting")
-		},
-	}
-)
+		<-ctx.Done()
+		slog.Info("server exiting")
+	},
+}
 
 func init() {
-	rootCmd.PersistentFlags().String("driver", "mysql", "Database driver")
-	runCmd.Flags().Int("port", 8080, "Port to serve Fivemanage")
+	slog.Info("initializing Fivemanage...")
 
-	viper.BindPFlag("driver", rootCmd.PersistentFlags().Lookup("driver"))
-	viper.BindPFlag("port", runCmd.Flags().Lookup("port"))
+	err := godotenv.Load()
+	if err != nil {
+		slog.Warn("Error loading .env file. Probably becasue we're in production", slog.Any("error", err))
+	}
 
-	rootCmd.AddCommand(runCmd)
+	rootCmd.PersistentFlags().String("driver", "pg", "Database driver")
+	rootCmd.Flags().Int("port", 8080, "Port to serve Fivemanage")
+	rootCmd.Flags().String("dsn", "", "Database DSN")
+	// clickhouse
+	rootCmd.Flags().String("clickhouse-host", "localhost:9000", "Clickhouse host")
+	rootCmd.Flags().String("clickhouse-username", "default", "Clickhouse username")
+	rootCmd.Flags().String("clickhouse-password", "password", "Clickhouse password")
+	rootCmd.Flags().String("clickhouse-database", "default", "Clickhouse database")
+	// s3
+	rootCmd.Flags().String("s3-provider", "minio", "S3 provider")
+
+	// fuck me
+	if err := viper.BindPFlag("port", rootCmd.Flags().Lookup("port")); err != nil {
+		bindError(err)
+	}
+	if err := viper.BindPFlag("dsn", rootCmd.Flags().Lookup("dsn")); err != nil {
+		bindError(err)
+	}
+	if err := viper.BindEnv("driver", "DB_DRIVER"); err != nil {
+		bindError(err)
+	}
+	if err := viper.BindEnv("port", "PORT"); err != nil {
+		bindError(err)
+	}
+	if err := viper.BindEnv("dsn", "DSN"); err != nil {
+		bindError(err)
+	}
+	if err := viper.BindEnv("clickhouse-host", "CLICKHOUSE_HOST"); err != nil {
+		bindError(err)
+	}
+	if err := viper.BindEnv("clickhouse-username", "CLICKHOUSE_USERNAME"); err != nil {
+		bindError(err)
+	}
+	if err := viper.BindEnv("clickhouse-password", "CLICKHOUSE_PASSWORD"); err != nil {
+		bindError(err)
+	}
+	if err := viper.BindEnv("clickhouse-database", "CLICKHOUSE_DATABASE"); err != nil {
+		bindError(err)
+	}
+	if err := viper.BindEnv("s3-provider", "S3_PROVIDER"); err != nil {
+		bindError(err)
+	}
 
 	rootCmd.AddCommand(migrate.RootCmd)
 	migrate.RootCmd.AddCommand(
@@ -126,5 +222,12 @@ func init() {
 func main() {
 	if err := rootCmd.Execute(); err != nil {
 		panic(err)
+	}
+}
+
+func bindError(err error) {
+	if err != nil {
+		slog.Error("failed to bind env", slog.Any("error", err))
+		os.Exit(1)
 	}
 }

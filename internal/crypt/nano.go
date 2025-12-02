@@ -25,3 +25,11 @@ func GenerateFilename() (string, error) {
 	}
 	return id, nil
 }
+
+func GeneratePrimaryKey() (string, error) {
+	id, err := gonanoid.Generate("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz", 16)
+	if err != nil {
+		return "", nil
+	}
+	return id, nil
+}

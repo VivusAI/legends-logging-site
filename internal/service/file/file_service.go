@@ -1,15 +1,19 @@
 package file
 
 import (
+	"bytes"
 	"context"
-	"fmt"
+	"errors"
+	"io"
 	"mime/multipart"
 
+	"github.com/fivemanage/lite/api"
 	"github.com/fivemanage/lite/internal/crypt"
 	"github.com/fivemanage/lite/internal/database"
-	filequery "github.com/fivemanage/lite/internal/database/query/file"
-	"github.com/fivemanage/lite/internal/storage"
-	"github.com/gabriel-vasile/mimetype"
+	"github.com/fivemanage/lite/internal/database/query/file"
+	"github.com/fivemanage/lite/internal/http/httputil"
+	"github.com/fivemanage/lite/pkg/storage"
+	"github.com/sirupsen/logrus"
 	"github.com/uptrace/bun"
 )
 
@@ -27,28 +31,61 @@ func NewService(db *bun.DB, storageLayer storage.StorageLayer) *Service {
 
 func (s *Service) CreateFile(
 	ctx context.Context,
-	fileType string,
+	organizationID string,
 	file multipart.File,
 	fileHeader *multipart.FileHeader,
 ) error {
 	var err error
-	key, contentType, err := generateFileKey(fileType, file, fileHeader)
+	var key string
+
+	primaryKey, err := crypt.GeneratePrimaryKey()
+	if err != nil {
+		return UploadStorageError{
+			ErrorMsg: err.Error(),
+		}
+	}
+
+	mimeType, ext, fileType, err := httputil.GetMimeDetails(fileHeader, file)
+	if err != nil {
+		return UploadStorageError{
+			ErrorMsg: errors.New("failed to get mime type").Error(),
+		}
+	}
+
+	key, err = generateFileKey(organizationID, ext)
+	if err != nil {
+		return UploadStorageError{
+			ErrorMsg: errors.New("failed to generate file key").Error(),
+		}
+	}
+
+	tx, err := filequery.Create(ctx, s.db, &database.Asset{
+		ID:             primaryKey,
+		Type:           fileType,
+		Size:           fileHeader.Size,
+		OrganizationID: organizationID,
+		Key:            key,
+	})
 	if err != nil {
 		return err
 	}
 
-	dbFile := &database.File{
-		Type: fileType,
-		Size: fileHeader.Size,
-		Key:  key,
-	}
-
-	tx, err := filequery.Create(ctx, s.db, dbFile)
+	// you'd think we didn't need to do this, but the since we read the file before this step to get mime type and shit
+	// we need to reset the file pointer and read it again
+	buffer, err := s.encode(file, fileHeader)
 	if err != nil {
-		return err
+		logrus.WithError(err).WithField("organization_id", organizationID).Error("FileService.CreateStorageFile")
+		if err := tx.Rollback(); err != nil {
+			logrus.WithError(err).WithField("organization_id", organizationID).Error("FileService.CreateStorageFile")
+			return err
+		}
+
+		return UploadStorageError{
+			ErrorMsg: err.Error(),
+		}
 	}
 
-	err = s.storage.UploadFile(ctx, file, key, contentType)
+	err = s.storage.UploadFile(ctx, buffer, key, mimeType)
 	if err != nil {
 		if err := tx.Rollback(); err != nil {
 			return err
@@ -57,23 +94,149 @@ func (s *Service) CreateFile(
 		return err
 	}
 
+	// this is a bit tricky, but if this fails....then...oh well
+	err = tx.Commit()
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
-func generateFileKey(fileType string, file multipart.File, fileHeader *multipart.FileHeader) (string, string, error) {
-	filename, err := crypt.GenerateFilename()
+// this is basically the function that is used for any dashboard uploads
+func (s *Service) CreateStorageFile(
+	ctx context.Context,
+	organizationID string,
+	file multipart.File,
+	fileHeader *multipart.FileHeader,
+) error {
+	var err error
+
+	primaryKey, err := crypt.GeneratePrimaryKey()
 	if err != nil {
-		return "", "", err
+		return UploadStorageError{
+			ErrorMsg: err.Error(),
+		}
 	}
 
-	buf := make([]byte, fileHeader.Size)
-	_, err = file.Read(buf)
+	mimeType, _, fileType, err := httputil.GetMimeDetails(fileHeader, file)
 	if err != nil {
-		return "", "", err
+		return UploadStorageError{
+			ErrorMsg: errors.New("failed to get mime type").Error(),
+		}
 	}
 
-	mime := mimetype.Detect(buf)
-	key := fmt.Sprintf("%s/%s.%s", fileType, filename, mime.Extension())
+	// fileHeader.Filename has the extension most of the time
+	// should it become an issue, we can look for it and check if its empty;
+	key := generateWebKey(organizationID, fileHeader.Filename)
 
-	return key, mime.String(), nil
+	tx, err := filequery.Create(ctx, s.db, &database.Asset{
+		ID:             primaryKey,
+		OrganizationID: organizationID,
+		Type:           fileType,
+		Size:           fileHeader.Size,
+		Key:            key,
+	})
+	if err != nil {
+		logrus.WithError(err).WithField("organization_id", organizationID).Error("FileService.CreateStorageFile")
+		return err
+	}
+
+	buffer, err := s.encode(file, fileHeader)
+	if err != nil {
+		logrus.WithError(err).WithField("organization_id", organizationID).Error("FileService.CreateStorageFile")
+		if err := tx.Rollback(); err != nil {
+			logrus.WithError(err).WithField("organization_id", organizationID).Error("FileService.CreateStorageFile")
+			return err
+		}
+
+		return UploadStorageError{
+			ErrorMsg: err.Error(),
+		}
+	}
+
+	err = s.storage.UploadFile(ctx, buffer, key, mimeType)
+	if err != nil {
+		logrus.WithError(err).WithField("organization_id", organizationID).Error("FileService.CreateStorageFile")
+
+		if err := tx.Rollback(); err != nil {
+			logrus.WithError(err).WithField("organization_id", organizationID).Error("FileService.CreateStorageFile")
+			return err
+		}
+
+		return UploadStorageError{
+			ErrorMsg: err.Error(),
+		}
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *Service) ListStorageFiles(
+	ctx context.Context,
+	organizationID string,
+	search string,
+) (*api.AssetResponse, error) {
+	var err error
+
+	files, err := filequery.FindStorageFiles(ctx, s.db, organizationID, search)
+	if err != nil {
+		storageError := &ListStorageError{
+			ErrorMsg: err.Error(),
+		}
+		logrus.WithError(storageError).
+			WithField("organization_id", organizationID).
+			Error("FileService.ListStorageFiles")
+		return nil, storageError
+	}
+
+	assets := make([]*api.Asset, len(files))
+	for i, file := range files {
+		assets[i] = &api.Asset{
+			ID:        file.ID,
+			Type:      file.Type,
+			Key:       file.Key,
+			Size:      file.Size,
+			CreatedAt: file.CreatedAt,
+		}
+	}
+
+	totalCount, err := filequery.FindTotalStorageCount(ctx, s.db, organizationID)
+	if err != nil {
+		storageError := &ListStorageError{
+			ErrorMsg: err.Error(),
+		}
+
+		logrus.WithError(storageError).
+			WithField("organization_id", organizationID).Error("FileService.ListStorageFiles")
+
+		return nil, storageError
+	}
+
+	response := &api.AssetResponse{
+		StorageFiles: assets,
+		TotalCount:   totalCount,
+	}
+
+	return response, nil
+}
+
+func (s *Service) encode(file multipart.File, header *multipart.FileHeader) (*bytes.Reader, error) {
+	if _, err := file.Seek(0, io.SeekStart); err != nil {
+		return nil, err
+	}
+
+	buf := make([]byte, header.Size)
+	_, err := file.Read(buf)
+	if err != nil {
+		return nil, err
+	}
+
+	reader := bytes.NewReader(buf)
+	return reader, nil
 }

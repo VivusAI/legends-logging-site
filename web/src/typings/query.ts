@@ -1,5 +1,8 @@
-export enum QueryKeys {
-  Session = "session",
-  CreateToken = "create-token",
-  Tokens = "tokens",
-}
+export const QueryKeys = {
+  Session: "session",
+  CreateToken: "create-token",
+  Tokens: "tokens",
+  Datasets: "datasets",
+  DatasetFields: "dataset-fields",
+  Logs: "logs",
+} as const;

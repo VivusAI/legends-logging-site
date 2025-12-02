@@ -7,6 +7,17 @@ import (
 	"github.com/uptrace/bun"
 )
 
+func SelectByHash(ctx context.Context, db *bun.DB, tokenHash string) (*database.Token, error) {
+	var token database.Token
+
+	err := db.NewSelect().Model(&token).Where("token_hash = ?", tokenHash).Scan(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return &token, nil
+}
+
 func Create(ctx context.Context, db *bun.DB, token *database.Token) error {
 	_, err := db.NewInsert().Model(token).Exec(ctx)
 	if err != nil {

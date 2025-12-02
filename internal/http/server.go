@@ -2,26 +2,30 @@ package http
 
 import (
 	"embed"
-	nethttp "net/http"
+	"fmt"
+	"io/fs"
+	"log/slog"
+	"net/http"
 	"strings"
 
 	"github.com/fivemanage/lite/internal/http/internalapi"
 	"github.com/fivemanage/lite/internal/http/publicapi"
 	_validator "github.com/fivemanage/lite/internal/http/validator"
 	"github.com/fivemanage/lite/internal/service/auth"
+	"github.com/fivemanage/lite/internal/service/dataset"
 	"github.com/fivemanage/lite/internal/service/file"
+	"github.com/fivemanage/lite/internal/service/log"
+	"github.com/fivemanage/lite/internal/service/organization"
 	"github.com/fivemanage/lite/internal/service/token"
+	"github.com/fivemanage/lite/pkg/cache"
 	"github.com/labstack/echo/v4"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/labstack/echo/v4/middleware"
 )
 
-// This embed shit shouldn't be this far away.
-// When we are ready, we can either build the React code directly into the server or root folder
-// or just copy it in the Dockerfile.
-
-// go:embed ../../../web/dist
+//go:embed dist/*
 var webContent embed.FS
 
 type Server struct {
@@ -30,19 +34,26 @@ type Server struct {
 
 // TODO: Add sentry for monitoring. There should be an opt-out option.
 func NewServer(
-	authservice *auth.Auth,
-	tokenservice *token.Service,
-	fileservice *file.Service,
+	authService *auth.Auth,
+	tokenService *token.Service,
+	fileService *file.Service,
+	organizationService *organization.Service,
+	logService *log.Service,
+	datasetService *dataset.Service,
+	memcache *cache.Cache,
 ) *echo.Echo {
 	app := echo.New()
+	app.Debug = true
 
-	// not good, not bad
-	app.Validator = &_validator.CustomValidator{Validator: validator.New()}
+	app.Use(otelecho.Middleware("lite-api"))
 	app.Use(middleware.Recover())
+	app.Use(middleware.CORS())
+	app.Use(middleware.RateLimiter(middleware.NewRateLimiterMemoryStore(20)))
+
+	app.Validator = &_validator.CustomValidator{Validator: validator.New()}
 
 	app.Use(middleware.StaticWithConfig(middleware.StaticConfig{
-		Root:       "web/dist",
-		Filesystem: nethttp.FS(webContent),
+		Filesystem: getFileSystem("dist"),
 		HTML5:      true,
 		Skipper: func(c echo.Context) bool {
 			return strings.HasPrefix(c.Request().URL.Path, "/api")
@@ -50,15 +61,28 @@ func NewServer(
 	}))
 
 	apiGroup := app.Group("/api")
+	dashApi := apiGroup.Group("/dash")
 
 	internalapi.Add(
-		apiGroup,
-		authservice,
-		tokenservice,
+		dashApi,
+		authService,
+		tokenService,
+		organizationService,
+		fileService,
+		datasetService,
 	)
-	publicapi.Add(apiGroup, fileservice)
-
-	// app.imageRouterGroup(apiGroup)
+	publicapi.Add(apiGroup, fileService, tokenService, logService, memcache)
 
 	return app
+}
+
+func getFileSystem(path string) http.FileSystem {
+	fs, err := fs.Sub(webContent, path)
+	if err != nil {
+		panic(err)
+	}
+
+	slog.Info(fmt.Sprintf("serving static files from %s", path))
+
+	return http.FS(fs)
 }

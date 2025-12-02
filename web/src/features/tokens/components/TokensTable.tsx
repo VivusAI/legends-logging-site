@@ -6,7 +6,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/Table";
+} from "@/components/ui/table";
 import { useTokens } from "../api/useTokens";
 import { DeleteTokenDialog } from "./DeleteTokenDialog";
 
@@ -18,7 +18,6 @@ export function TokensTable() {
       <TableCaption>A list of your tokens.</TableCaption>
       <TableHeader>
         <TableRow>
-          <TableHead className="w-[100px]">ID</TableHead>
           <TableHead>Identifier</TableHead>
           <TableHead>Type</TableHead>
           <TableHead color="text-right"></TableHead>
@@ -28,7 +27,6 @@ export function TokensTable() {
         {tokens &&
           tokens.map((token) => (
             <TableRow>
-              <TableCell className="font-medium">{token.id}</TableCell>
               <TableCell>{token.identifier}</TableCell>
               <TableCell>type</TableCell>
               <TableCell className="text-right">

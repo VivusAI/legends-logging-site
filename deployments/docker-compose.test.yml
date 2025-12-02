@@ -1,0 +1,45 @@
+name: "Fivemanage Lite Test"
+
+services:
+
+  database-test:
+    image: mysql:8
+    container_name: lite_database_test
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: fivemanage-lite-dev
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./.docker/mysql_data:/var/lib/mysql
+    networks:
+      - fivemanage
+  jaeger-test:
+    image: jaegertracing/jaeger:2.4.0 
+    container_name: jaeger_test
+    ports:
+      - "16686:16686"
+      - "4317:4317"
+      - "4318:4318"
+      - "5778:5778"
+      - "9411:9411"
+  lite:
+    image: fivemanage/lite:latest
+    container_name: lite
+    environment:
+      - DB_DRIVER=mysql
+      - ADMIN_PASSWORD=password
+      - PORT=8080
+      - DSN=root:root@tcp(database-test:3306)/fivemanage-lite-dev
+      - AWS_BUCKET=fivemanage-lite
+      - AWS_REGION=auto
+    ports:
+      - "8080:8080"
+    depends_on:
+      - database-test
+    networks:
+      - fivemanage
+
+networks:
+  fivemanage:
+    driver: bridge

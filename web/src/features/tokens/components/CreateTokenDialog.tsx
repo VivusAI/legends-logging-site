@@ -3,24 +3,24 @@ import {
   DialogContent,
   DialogFooter,
   DialogHeader,
+  DialogTitle,
   DialogTrigger,
-} from "@/components/ui/Dialog";
+} from "@/components/ui/dialog";
 import {
   Form,
   FormControl,
   FormField,
   FormItem,
   FormLabel,
-} from "@/components/ui/Form";
+} from "@/components/ui/form";
 import { type TokenParams, tokenSchema } from "@/typings/token";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { useCreateToken } from "../api/useCreateToken";
 import { useState, useTransition } from "react";
-import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { KeyRound } from "lucide-react";
-import { DialogTitle } from "@radix-ui/react-dialog";
 import { useQueryClient } from "@tanstack/react-query";
 import { QueryKeys } from "@/typings/query";
 
@@ -53,6 +53,10 @@ export function CreateTokenDialog() {
     reset();
   }
 
+  function handleInteractOutside(e: Event) {
+    e.preventDefault();
+  }
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -63,14 +67,26 @@ export function CreateTokenDialog() {
       </DialogTrigger>
       <DialogContent
         id="create-token-dialog"
-        onAnimationEnd={resetForm}
         aria-description="Create a new token"
+        onInteractOutside={handleInteractOutside}
+        onPointerDownOutside={handleInteractOutside}
+        onAnimationEnd={resetForm}
       >
         <DialogHeader>
-          <DialogTitle>Create token</DialogTitle>
+          <DialogTitle>
+            {isSuccess ? "Token created!" : "Create token"}
+          </DialogTitle>
         </DialogHeader>
         {isSuccess && data ? (
-          <div className="border p-2">{data.token}</div>
+          <div>
+            <p className="text-sm">
+              Copy the token below and store it in a safe place.
+            </p>
+            <p className="text-red-500 text-sm">
+              You won't be able to see it again.
+            </p>
+            <div className="border p-2 mt-2">{data.token}</div>
+          </div>
         ) : (
           <Form {...form}>
             <form onSubmit={form.handleSubmit(handleOnSubmit)}>

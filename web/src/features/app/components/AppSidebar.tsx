@@ -17,27 +17,32 @@ import {
   SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
-} from "@/components/ui/Sidebar";
+  SidebarHeader,
+  SidebarFooter,
+} from "@/components/ui/sidebar";
+import { NavLink } from "react-router";
+import { OrganizationSwitcher } from "@/features/app/components/OrganizationSwitcher";
+import { useSession } from "@/features/auth/api/useSession";
+import { NavUser } from "@/features/app/components/NavUser";
 
-// Menu items.
 const items = [
   {
-    title: "Files",
-    url: "/app/files",
+    title: "Storage",
+    url: "storage",
     icon: Folders,
     comingSoon: false,
   },
   {
     title: "Tokens",
-    url: "/app/tokens",
+    url: "tokens",
     icon: KeyRound,
     comingSoon: false,
   },
   {
     title: "Logs",
-    url: "#",
+    url: "logs",
     icon: Layers,
-    comingSoon: true,
+    comingSoon: false,
   },
   {
     title: "Team",
@@ -60,30 +65,49 @@ const items = [
 ];
 
 export function AppSidebar() {
+  const session = useSession();
   return (
-    <Sidebar>
-      <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>Fivemanage Lite (dev)</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {items.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild>
-                    <a href={item.url}>
-                      <item.icon />
-                      <span>{item.title}</span>
-                    </a>
-                  </SidebarMenuButton>
-                  {item.comingSoon && (
-                    <SidebarMenuBadge>Coming soon</SidebarMenuBadge>
-                  )}
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-      </SidebarContent>
+    <Sidebar className="h-full">
+      <div className="flex flex-col h-full">
+        <SidebarHeader>
+          <OrganizationSwitcher />
+        </SidebarHeader>
+        <SidebarContent className="flex-1">
+          <SidebarGroup>
+            <SidebarGroupLabel>
+              Fivemanage Lite ({import.meta.env.VITE_VERSION})
+            </SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {items.map((item) => (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton asChild>
+                      <NavLink to={item.url}>
+                        <item.icon />
+                        <span>{item.title}</span>
+                      </NavLink>
+                    </SidebarMenuButton>
+                    {item.comingSoon && (
+                      <SidebarMenuBadge>Coming soon</SidebarMenuBadge>
+                    )}
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        </SidebarContent>
+        <SidebarFooter>
+          {session.data && (
+            <NavUser
+              user={{
+                name: session.data.name || session.data.username,
+                email: session.data.email || "",
+                avatar: session.data.avatar || "",
+              }}
+            />
+          )}
+        </SidebarFooter>
+      </div>
     </Sidebar>
   );
 }

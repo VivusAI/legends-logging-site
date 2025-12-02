@@ -1,19 +1,20 @@
 name: "Fivemanage Lite"
 
 services:
-  database:
-    image: mysql:8
-    container_name: lite_database
+  lite-database:
+    image: postgres:latest
+    container_name: lite-database
     environment:
-      MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: fivemanage-lite-dev
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: root
+      POSTGRES_DB: fivemanage-lite-dev
     ports:
-      - "3306:3306"
+      - "5432:5432"
     volumes:
-      - ./.docker/mysql_data:/var/lib/mysql
+      - ./.docker/postgres_data:/var/lib/postgresql/data
     networks:
       - fivemanage
-  jaeger:
+  lite-jaeger:
     image: jaegertracing/jaeger:2.4.0 
     container_name: jaeger
     ports:
@@ -22,7 +23,58 @@ services:
       - "4318:4318"
       - "5778:5778"
       - "9411:9411"
+  lite-clickhouse:
+    image: clickhouse/clickhouse-server:latest
+    restart: always
+    container_name: lite-clickhouse
+    environment:
+      CLICKHOUSE_PASSWORD: password
+    ports:
+      - '18123:8123'
+      - '19000:9000'
+    volumes:
+      - clickhouse-data:/var/lib/clickhouse/
+    networks:
+      - fivemanage
+  lite-kafka:
+    image: bitnami/kafka:4.0.0
+    container_name: lite-kafka
+    ports:
+      - '9092:9092'
+      - '9093:9093'
+      - '9094:9094'
+    environment:
+      - KAFKA_CFG_NODE_ID=0
+      - KAFKA_CFG_PROCESS_ROLES=controller,broker
+      - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://:9094
+      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://lite-kafka:9092,EXTERNAL://localhost:9094
+      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
+      - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=0@lite-kafka:9093
+      - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
+      - KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE=true
+    volumes:
+      - ./.docker/kafka:/bitnami/kafka
+    networks:
+      - fivemanage
+  lite-minio:
+    image: minio/minio:latest
+    container_name: lite-minio
+    ports:
+      - "9000:9000" 
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
+    command: server /data --console-address ":9001"
+    volumes:
+      - ./.docker/minio/data:/data
+    networks:
+      - fivemanage
 
 networks:
   fivemanage:
     driver: bridge
+
+
+volumes:
+  clickhouse-data: { driver: local }

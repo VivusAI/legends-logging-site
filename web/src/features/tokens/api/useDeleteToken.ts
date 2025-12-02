@@ -5,7 +5,7 @@ export function useDeleteToken() {
   const { mutateAsync, isPending } = useMutation({
     mutationFn: async (tokenId: number) => {
       try {
-        return await fetchApi(`/api/token/${tokenId}`, {
+        return await fetchApi(`/api/dash/token/${tokenId}`, {
           method: "DELETE",
         });
       } catch (error) {

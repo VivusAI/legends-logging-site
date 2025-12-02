@@ -1,13 +1,16 @@
 package auth
 
 import (
+	"errors"
 	"os"
 
+	"github.com/labstack/echo/v4"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/github"
 )
 
 // TODO: Move this to the authservice package
+// we're not currently using this btw, soooooo whatever
 func NewGithubConfig() *oauth2.Config {
 	githubClientID := os.Getenv("GITHUB_CLIENT_ID")
 	githubClientSecret := os.Getenv("GITHUB_CLIENT_SECRET")
@@ -23,4 +26,13 @@ func NewGithubConfig() *oauth2.Config {
 	}
 
 	return config
+}
+
+func CurrentOrgId(c echo.Context) (string, error) {
+	org_id, ok := c.Get("org_id").(string)
+	if !ok {
+		return "", errors.New("org not found in context")
+	}
+
+	return org_id, nil
 }

@@ -8,7 +8,7 @@ export function useTokens() {
     queryKey: [QueryKeys.Tokens],
     queryFn: async () => {
       try {
-        return fetchApi<Token[]>("/api/token");
+        return fetchApi<Token[]>("/api/dash/token");
       } catch (err) {
         if (err instanceof ApiError) {
           throw new Error(err.message);

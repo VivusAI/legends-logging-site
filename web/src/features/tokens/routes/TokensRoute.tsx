@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { CreateTokenDialog } from "../components/CreateTokenDialog";
 import { TokensTable } from "../components/TokensTable";
 
-export function TokensRoute() {
+export default function TokensRoute() {
   return (
     <main>
       <CreateTokenDialog />

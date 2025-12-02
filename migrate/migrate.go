@@ -7,10 +7,12 @@ import (
 
 	"github.com/fivemanage/lite/internal/database"
 	"github.com/fivemanage/lite/migrate/migrations"
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/migrate"
+	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 )
 
 var (
@@ -24,7 +26,8 @@ var (
 		Short: "Create migration tables",
 		Run: func(cmd *cobra.Command, args []string) {
 			driver := viper.GetString("driver")
-			db := database.New(driver, "").Connect()
+			dsn := viper.GetString("dsn")
+			db := database.New(driver).Connect(dsn)
 
 			migrator := migrate.NewMigrator(db, migrations.Migrations)
 			err := migrator.Init(cmd.Context())
@@ -39,7 +42,9 @@ var (
 		Short: "Migrate database",
 		Run: func(cmd *cobra.Command, args []string) {
 			driver := viper.GetString("driver")
-			db := database.New(driver, "").Connect()
+			dsn := viper.GetString("dsn")
+
+			db := database.New(driver).Connect(dsn)
 
 			migrator := migrate.NewMigrator(db, migrations.Migrations)
 			if err := migrator.Lock(cmd.Context()); err != nil {
@@ -52,9 +57,10 @@ var (
 				panic(err)
 			}
 			if group.IsZero() {
-				fmt.Printf("there are no new migrations to run (database is up to date)\n")
+				otelzap.S().Info("there are no new migrations to run (database is up to date)")
 			}
-			fmt.Printf("migrated to %s\n", group)
+
+			otelzap.S().Infof("migrated to %s", group)
 		},
 	}
 
@@ -62,7 +68,8 @@ var (
 		Use: "unlock",
 		Run: func(cmd *cobra.Command, args []string) {
 			driver := viper.GetString("driver")
-			db := database.New(driver, "").Connect()
+			dsn := viper.GetString("dsn")
+			db := database.New(driver).Connect(dsn)
 
 			migrator := migrate.NewMigrator(db, migrations.Migrations)
 			err := migrator.Unlock(cmd.Context())
@@ -76,7 +83,8 @@ var (
 		Use: "lock",
 		Run: func(cmd *cobra.Command, args []string) {
 			driver := viper.GetString("driver")
-			db := database.New(driver, "").Connect()
+			dsn := viper.GetString("dsn")
+			db := database.New(driver).Connect(dsn)
 
 			migrator := migrate.NewMigrator(db, migrations.Migrations)
 			err := migrator.Lock(cmd.Context())
@@ -91,19 +99,30 @@ var (
 		Short: "Create database migration",
 		Run: func(cmd *cobra.Command, args []string) {
 			driver := viper.GetString("driver")
-			db := database.New(driver, "").Connect()
+			dsn := viper.GetString("dsn")
+			db := database.New(driver).Connect(dsn)
 
 			migrator := migrate.NewMigrator(db, migrations.Migrations)
 
 			name := strings.Join(args, "_")
-			mf, err := migrator.CreateGoMigration(cmd.Context(), name)
+			mf, err := migrator.CreateSQLMigrations(cmd.Context(), name)
 			if err != nil {
 				panic(err)
 			}
-			fmt.Printf("created migration %s (%s)\n", mf.Name, mf.Path)
+
+			for _, m := range mf {
+				fmt.Printf("created migration %s (%s)\n", m.Name, m.Path)
+			}
 		},
 	}
 )
+
+func InitMigration(ctx context.Context, db *bun.DB) {
+	migrator := migrate.NewMigrator(db, migrations.Migrations)
+	if err := migrator.Init(ctx); err != nil {
+		panic(err)
+	}
+}
 
 func AutoMigrate(ctx context.Context, db *bun.DB) {
 	migrator := migrate.NewMigrator(db, migrations.Migrations)
@@ -117,7 +136,9 @@ func AutoMigrate(ctx context.Context, db *bun.DB) {
 		panic(err)
 	}
 	if group.IsZero() {
-		fmt.Printf("there are no new migrations to run (database is up to date)\n")
+		otelzap.S().Info("there are no new migrations to run (database is up to date)")
+		return
 	}
-	fmt.Printf("migrated to %s\n", group)
+
+	logrus.Infof("migrated to %s", group)
 }

@@ -1,11 +1,19 @@
 package migrations
 
-import "github.com/uptrace/bun/migrate"
+import (
+	"embed"
+
+	"github.com/uptrace/bun/migrate"
+)
+
+//go:embed *.go
+//go:embed *.sql
+var sqlMigrations embed.FS
 
 var Migrations = migrate.NewMigrations()
 
 func init() {
-	if err := Migrations.DiscoverCaller(); err != nil {
+	if err := Migrations.Discover(sqlMigrations); err != nil {
 		panic(err)
 	}
 }

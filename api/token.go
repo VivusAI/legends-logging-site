@@ -1,8 +1,9 @@
 package api
 
 type CreateTokenRequest struct {
-	Identifier string `json:"identifier"`
-	Type       string `json:"type"`
+	Identifier     string `json:"identifier"`
+	Type           string `json:"type"`
+	OrganizationID string `json:"omitzero"`
 }
 
 type CreateTokenResponse struct {

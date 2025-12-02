@@ -1,5 +1,24 @@
-# Builder stage
-FROM --platform=arm64 golang:1.22-alpine3.19 as builder
+# Frontend
+FROM node:22-slim AS frontend
+
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+RUN corepack enable
+
+WORKDIR /frontend
+
+COPY web/pnpm-lock.yaml .
+
+RUN pnpm fetch
+
+COPY web .
+
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
+RUN pnpm run build
+
+
+# Backend
+FROM golang:1.24 AS backend
 
 WORKDIR /app
 
@@ -9,13 +28,20 @@ RUN go mod download
 
 COPY . .
 
+COPY --from=frontend /frontend/dist internal/http/dist
+
+ENV CGO_ENABLED=0
 RUN go build -o /app/main ./cmd/lite/lite.go
 
-# Final stage
-FROM --platform=arm64 alpine:3.14
+# Application
+FROM gcr.io/distroless/static-debian12
 
 WORKDIR /app
 
-COPY --from=builder /app/main /app/main
+COPY --from=backend /app/main /app/main
+
+EXPOSE 8080
+
+USER nonroot:nonroot
 
 CMD ["/app/main"]
