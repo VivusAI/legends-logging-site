@@ -127,8 +127,6 @@ var rootCmd = &cobra.Command{
 			memcache,
 		)
 
-		// todo: check if we have an admin user
-		// if not, create an admin user with the ADMIN_PASSWORD ENV
 		err = authService.CreateAdminUser()
 		if err != nil {
 			slog.Error("failed to create admin user", slog.Any("error", err))
