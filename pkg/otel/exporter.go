@@ -12,6 +12,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/resource"
 	"go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.24.0"
+	"go.opentelemetry.io/otel/trace/noop"
 )
 
 const (
@@ -19,9 +20,9 @@ const (
 	otlpEndpoint = "localhost:4318"
 )
 
-func SetupTracer() (func(context.Context) error, error) {
+func SetupTracer(disabled bool) (func(context.Context) error, error) {
 	ctx := context.Background()
-	return InstallExportPipeline(ctx)
+	return InstallExportPipeline(ctx, disabled)
 }
 
 func Resource() *resource.Resource {
@@ -34,7 +35,14 @@ func Resource() *resource.Resource {
 	)
 }
 
-func InstallExportPipeline(ctx context.Context) (func(context.Context) error, error) {
+func InstallExportPipeline(ctx context.Context, disabled bool) (func(context.Context) error, error) {
+	if disabled {
+		tracerProvider := noop.NewTracerProvider()
+		otel.SetTracerProvider(tracerProvider)
+
+		return func(context.Context) error { return nil }, nil
+	}
+
 	var tlsOption otlptracehttp.Option
 	if os.Getenv("ENV") == "dev" {
 		tlsOption = otlptracehttp.WithInsecure()
